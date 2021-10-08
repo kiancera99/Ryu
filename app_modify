@@ -84,13 +84,29 @@ class SimpleSwitch13(app_manager.RyuApp):
         
         pkt_ipv4=pkt.get_protocols(ipv4.ipv4)[0]
         pkt_ipv4=pkt.get_protocols(tcp.tcp)[0]
+    
 
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             # ignore lldp packet
             return
         dst = eth.dst
         src = eth.src
-
+        nw_src=0
+        nw_dst=0
+        nw_proto=0
+        tcp_src=0
+        tcp_dst=0
+        #IPv4
+        if eth.ethertype == ether_types.ETH_TYPE_IP:
+            nw_src=pkt_ipv4.src
+            nw_dst=pkt_ipv4.dst
+            nw_proto=pkt_ipv4.proto
+         
+         #TCP port
+         if nw_proto==6
+            tcp_src=pkt_tcp.src_port
+            tcp_dst=pkt_tcp.dst_port
+        
         dpid = format(datapath.id, "d").zfill(16)
         self.mac_to_port.setdefault(dpid, {})
 
@@ -108,7 +124,14 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         # install a flow to avoid packet_in next time
         if out_port != ofproto.OFPP_FLOOD:
-            match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
+            if eth.ethertype == ether_types.ETH_TYPE_IP and nw_proto==6:
+                match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src,nw_src=nw_src,nw_dst=nw_dst,nw_proto=nw_proto,tcp_src=tcp_src,tcp_dst=tcp_dst)
+            elif eth.ethertype == ether_types.ETH_TYPE_IP and nw_proto!=6:   
+                    match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src,nw_src=nw_src,nw_dst=nw_dst,nw_proto=nw_proto)
+            else:
+                    match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
+                
+                
             # verify if we have a valid buffer_id, if yes avoid to send both
             # flow_mod & packet_out
             if msg.buffer_id != ofproto.OFP_NO_BUFFER:
@@ -123,3 +146,22 @@ class SimpleSwitch13(app_manager.RyuApp):
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
         datapath.send_msg(out)
+        
+        @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
+        def port_status_handler(self, ev):
+            msg = ev.msg
+            dp = msg.datapath
+            ofp = dp.ofproto
+
+            if msg.reason == ofp.OFPPR_ADD:
+                reason = 'ADD'
+            elif msg.reason == ofp.OFPPR_DELETE:
+                reason = 'DELETE'
+            elif msg.reason == ofp.OFPPR_MODIFY:
+                reason = 'MODIFY'
+            else:
+                reason = 'unknown'
+
+            self.logger.debug('OFPPortStatus received: reason=%s desc=%s',
+                              reason, msg.desc)
+
