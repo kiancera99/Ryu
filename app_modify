@@ -103,7 +103,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             nw_proto=pkt_ipv4.proto
          
          #TCP port
-         if nw_proto==6
+         if nw_proto==6:
             tcp_src=pkt_tcp.src_port
             tcp_dst=pkt_tcp.dst_port
         
